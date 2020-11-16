@@ -29,6 +29,9 @@ import Dispatch
 #if os(macOS) || os(iOS)
 import Accounts
 #endif
+#if canImport(AuthenticationServices)
+    import AuthenticationServices
+#endif
 
 extension Notification.Name {
     static let swifterCallback = Notification.Name(rawValue: "Swifter.CallbackNotificationName")
@@ -115,6 +118,18 @@ public class Swifter {
         }
     }
     
+    private var _session: Any?
+    @available(iOS 13, *)
+    internal var session: ASWebAuthenticationSession? {
+        get {
+            return _session as? ASWebAuthenticationSession
+        }
+        set {
+            _session = newValue
+        }
+    }
+
+
     // MARK: - Initializers
     
     public init(consumerKey: String, consumerSecret: String, appOnly: Bool = false) {

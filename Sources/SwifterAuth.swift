@@ -28,6 +28,9 @@ import Foundation
 #if os(iOS)
     import UIKit
     import SafariServices
+    #if canImport(AuthenticationServices)
+        import AuthenticationServices
+    #endif
 #elseif os(macOS)
     import AppKit
 #endif
@@ -114,6 +117,40 @@ public extension Swifter {
                 UIApplication.shared.open(queryUrl, options: [:], completionHandler: nil)
             }
         }, failure: failure)
+    }
+    
+    @available(iOS 13, *)
+    func authorize(withCallback callbackURL: URL,
+        context: ASWebAuthenticationPresentationContextProviding?,
+        forceLogin: Bool = false,
+        success: TokenSuccessHandler?,
+        failure: FailureHandler? = nil) {
+        self.postOAuthRequestToken(with: callbackURL, success: { [unowned self, weak context] (token, response) in
+            var requestToken = token!
+            
+            let forceLogin = forceLogin ? "&force_login=true" : ""
+            let query = "oauth/authorize?oauth_token=\(token!.key)\(forceLogin)"
+            let queryUrl = URL(string: query, relativeTo: TwitterURL.oauth.url)!.absoluteURL
+            
+            let session = ASWebAuthenticationSession(url: queryUrl, callbackURLScheme: callbackURL.absoluteString) { (url, error) in
+                if let error = error {
+                    failure?(error)
+                }
+                if let parameters = url?.query?.queryStringParameters {
+                    requestToken.verifier = parameters["oauth_verifier"]
+                    
+                    self.session = nil
+                    self.postOAuthAccessToken(with: requestToken, success: { accessToken, response in
+                        self.client.credential = Credential(accessToken: accessToken!)
+                        success?(accessToken!, response)
+                        }, failure: failure)
+                }
+            }
+            session.presentationContextProvider = context
+            session.start()
+            self.session = session
+        }, failure: failure)
+
     }
   
     func authorizeSSO(success: SSOTokenSuccessHandler?, failure: FailureHandler? = nil) {
